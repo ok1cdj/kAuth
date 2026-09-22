@@ -13,7 +13,6 @@ package com.ok1cdj.kauth
 import android.content.Context
 import android.content.ContextWrapper
 import android.os.Bundle
-import android.os.SystemClock
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -47,7 +46,6 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mudita.mmd.components.text.TextMMD
-import com.ok1cdj.kauth.data.AutoLockMode
 import com.ok1cdj.kauth.security.BiometricVault
 import com.ok1cdj.kauth.ui.AboutDialog
 import com.ok1cdj.kauth.ui.AccountsScreen
@@ -108,6 +106,7 @@ private fun App() {
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/octet-stream")
     ) { uri ->
+        vm.endSensitiveOp()
         if (uri != null) {
             scope.launch {
                 val blob = vm.exportBlob()
@@ -127,6 +126,7 @@ private fun App() {
     val restoreLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
+        vm.endSensitiveOp()
         if (uri != null) {
             scope.launch {
                 val text = runCatching {
@@ -138,28 +138,15 @@ private fun App() {
         }
     }
 
-    // Auto-lock: lock the vault when the app leaves the foreground (per the chosen
-    // mode). SAF pickers and the biometric prompt set suspendAutoLock so they don't
-    // self-lock the vault mid-operation.
+    // Auto-lock: the policy lives in the ViewModel; the observer just forwards the
+    // foreground/background transitions. SAF pickers and the biometric prompt
+    // bracket themselves with begin/endSensitiveOp so they don't self-lock.
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_STOP -> {
-                    if (vm.isUnlocked && !vm.suspendAutoLock) {
-                        if (vm.autoLockMode == AutoLockMode.IMMEDIATE) vm.lock()
-                        else vm.backgroundedAt = SystemClock.elapsedRealtime()
-                    }
-                }
-                Lifecycle.Event.ON_START -> {
-                    if (vm.isUnlocked && !vm.suspendAutoLock) {
-                        val bg = vm.backgroundedAt
-                        val threshold = vm.autoLockMode.thresholdMs()
-                        if (bg != null && SystemClock.elapsedRealtime() - bg >= threshold) vm.lock()
-                    }
-                    vm.backgroundedAt = null
-                    vm.suspendAutoLock = false
-                }
+                Lifecycle.Event.ON_STOP -> vm.onEnterBackground()
+                Lifecycle.Event.ON_START -> vm.onEnterForeground()
                 else -> {}
             }
         }
@@ -252,8 +239,8 @@ private fun App() {
             },
             onDisableBiometric = { vm.disableBiometric() },
             onChangePassword = { showSettings = false; showChangePassword = true },
-            onExport = { showSettings = false; vm.suspendAutoLock = true; exportLauncher.launch(BACKUP_FILENAME) },
-            onRestore = { showSettings = false; vm.suspendAutoLock = true; restoreLauncher.launch(arrayOf("*/*")) },
+            onExport = { showSettings = false; vm.beginSensitiveOp(); exportLauncher.launch(BACKUP_FILENAME) },
+            onRestore = { showSettings = false; vm.beginSensitiveOp(); restoreLauncher.launch(arrayOf("*/*")) },
             onLock = { showSettings = false; vm.lock() },
             onDismiss = { showSettings = false },
         )
@@ -286,7 +273,7 @@ private fun App() {
 private fun promptBiometricEnable(context: Context, vm: AuthViewModel) {
     val activity = context.findActivity() ?: return
     val vmk = vm.sessionVmk() ?: return
-    vm.suspendAutoLock = true
+    vm.beginSensitiveOp()
     BiometricVault.enable(
         activity = activity,
         vmk = vmk,
@@ -295,13 +282,13 @@ private fun promptBiometricEnable(context: Context, vm: AuthViewModel) {
         cancel = context.getString(R.string.cancel),
         onSuccess = { material ->
             vmk.fill(0)
-            vm.suspendAutoLock = false
+            vm.endSensitiveOp()
             vm.onBiometricEnabled(material)
             Toast.makeText(context, R.string.bio_enabled, Toast.LENGTH_SHORT).show()
         },
         onError = { msg ->
             vmk.fill(0)
-            vm.suspendAutoLock = false
+            vm.endSensitiveOp()
             Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
         },
     )
@@ -311,7 +298,7 @@ private fun promptBiometricEnable(context: Context, vm: AuthViewModel) {
 private fun promptBiometricUnlock(context: Context, vm: AuthViewModel) {
     val activity = context.findActivity() ?: return
     val material = vm.biometricMaterial ?: return
-    vm.suspendAutoLock = true
+    vm.beginSensitiveOp()
     BiometricVault.unlock(
         activity = activity,
         material = material,
@@ -319,14 +306,16 @@ private fun promptBiometricUnlock(context: Context, vm: AuthViewModel) {
         subtitle = context.getString(R.string.bio_prompt_subtitle),
         cancel = context.getString(R.string.cancel),
         onSuccess = { vmk ->
-            vm.suspendAutoLock = false
-            val ok = vm.unlockWithVmk(vmk)
+            vm.endSensitiveOp()
+            // unlockWithVmk copies the key synchronously, so we can zero ours now.
+            vm.unlockWithVmk(vmk) { ok ->
+                if (!ok) Toast.makeText(context, R.string.bio_error, Toast.LENGTH_SHORT).show()
+            }
             vmk.fill(0)
-            if (!ok) Toast.makeText(context, R.string.bio_error, Toast.LENGTH_SHORT).show()
         },
-        onError = { vm.suspendAutoLock = false /* cancelled/transient — password remains available */ },
+        onError = { vm.endSensitiveOp() /* cancelled/transient — password remains available */ },
         onInvalidated = {
-            vm.suspendAutoLock = false
+            vm.endSensitiveOp()
             vm.disableBiometric()
             Toast.makeText(context, R.string.bio_invalidated, Toast.LENGTH_LONG).show()
         },

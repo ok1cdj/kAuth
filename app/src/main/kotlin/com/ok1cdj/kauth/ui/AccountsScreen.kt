@@ -80,10 +80,14 @@ fun AccountsScreen(
     var searchOpen by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
     val showSearch = searchOpen || accounts.size > 6
-    val shown = if (query.isBlank()) accounts else accounts.filter {
-        it.label().contains(query, ignoreCase = true) ||
-            it.issuer.contains(query, ignoreCase = true) ||
-            it.name.contains(query, ignoreCase = true)
+    // Memoized so the 1-second `now` tick (which recomposes this screen to update
+    // the countdown) doesn't re-scan the whole list every second.
+    val shown = remember(accounts, query) {
+        if (query.isBlank()) accounts else accounts.filter {
+            it.label().contains(query, ignoreCase = true) ||
+                it.issuer.contains(query, ignoreCase = true) ||
+                it.name.contains(query, ignoreCase = true)
+        }
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -236,7 +240,11 @@ private fun AccountActionsDialog(
     onDelete: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val code = runCatching { Otp.code(account, now) }.getOrDefault("------")
+    // Key on the period boundary (like AccountRow) so the code isn't re-derived
+    // every 1-second tick while the dialog is open.
+    val code = remember(account, if (account.type == OtpType.TOTP) now / (account.period * 1000L) else account.counter) {
+        runCatching { Otp.code(account, now) }.getOrDefault("------")
+    }
     MmdDialog(onDismiss = onDismiss) {
         TextMMD(text = account.label(), fontSize = 16.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(12.dp))

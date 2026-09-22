@@ -30,6 +30,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,9 +56,16 @@ fun UnlockScreen(
     var password by remember { mutableStateOf("") }
 
     // When biometrics is set up, prompt automatically on arrival; the password
-    // field stays available as the fallback.
+    // field stays available as the fallback. Guarded so a config-change
+    // recomposition doesn't re-summon the prompt after the user dismissed it.
+    // rememberSaveable is dropped when this screen leaves composition, so the next
+    // fresh lock still auto-prompts.
+    var alreadyPrompted by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(biometricEnabled) {
-        if (biometricEnabled) onBiometric()
+        if (biometricEnabled && !alreadyPrompted) {
+            alreadyPrompted = true
+            onBiometric()
+        }
     }
 
     Column(

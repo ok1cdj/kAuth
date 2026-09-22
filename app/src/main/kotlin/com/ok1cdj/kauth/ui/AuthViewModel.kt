@@ -11,6 +11,7 @@
 package com.ok1cdj.kauth.ui
 
 import android.app.Application
+import android.os.SystemClock
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -102,12 +103,15 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
     var biometricMaterial: BiometricMaterial? by mutableStateOf(null)
         private set
 
-    /** Set by the UI around SAF pickers / biometric prompts so those system UIs
-     *  don't trip auto-lock while the app is briefly backgrounded. */
-    var suspendAutoLock: Boolean = false
+    // Auto-lock policy lives here (not in the Activity). Backgrounding a SAF
+    // picker or a biometric prompt must not auto-lock; callers bracket those with
+    // [beginSensitiveOp]/[endSensitiveOp]. A counter (not a bare flag) so
+    // overlapping ops don't clear each other, and [onEnterForeground] force-clears
+    // it so a callback-less dismissal can't leave auto-lock disabled.
+    private var autoLockSuspends = 0
 
     /** Monotonic time the app was last backgrounded (for timed auto-lock). */
-    var backgroundedAt: Long? = null
+    private var backgroundedAt: Long? = null
 
     // --- pending Google Authenticator import ---------------------------------
     var pendingImport: List<OtpAccount> by mutableStateOf(emptyList())
@@ -175,18 +179,28 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Unlock via a VMK recovered by biometrics. Returns false if the vault can't
-     *  be opened with it (e.g. stale key material). Stores a private copy of [key]
-     *  so the caller may safely zero its own array. */
-    fun unlockWithVmk(key: ByteArray): Boolean {
-        val blob = currentBlob ?: return false
-        return runCatching {
-            val bytes = VaultCrypto.decryptData(blob, key)
-            vmk = key.copyOf()
-            accounts = VaultModel.deserialize(String(bytes, Charsets.UTF_8))
-            screen = Screen.Accounts
-            true
-        }.getOrDefault(false)
+    /**
+     * Unlock via a VMK recovered by biometrics. Copies [key] immediately (the
+     * caller may zero its array right after) and does the decrypt/parse off the
+     * main thread; [onResult] reports success on the main thread.
+     */
+    fun unlockWithVmk(key: ByteArray, onResult: (Boolean) -> Unit) {
+        val blob = currentBlob ?: run { onResult(false); return }
+        val keyCopy = key.copyOf()
+        viewModelScope.launch {
+            val decoded = withContext(Dispatchers.Default) {
+                runCatching { VaultCrypto.decryptData(blob, keyCopy) }
+            }
+            decoded.onSuccess { bytes ->
+                vmk = keyCopy
+                accounts = VaultModel.deserialize(String(bytes, Charsets.UTF_8))
+                screen = Screen.Accounts
+                onResult(true)
+            }.onFailure {
+                keyCopy.fill(0)
+                onResult(false)
+            }
+        }
     }
 
     /** Wipe the in-memory secrets and return to the lock screen. */
@@ -202,6 +216,31 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
 
     /** A copy of the current session VMK, for wrapping with a biometric key. */
     fun sessionVmk(): ByteArray? = vmk?.copyOf()
+
+    // --- auto-lock lifecycle (driven by the Activity's lifecycle observer) ----
+
+    /** Bracket a SAF picker / biometric prompt so backgrounding it won't lock. */
+    fun beginSensitiveOp() { autoLockSuspends++ }
+    fun endSensitiveOp() { if (autoLockSuspends > 0) autoLockSuspends-- }
+
+    /** App left the foreground: lock now (IMMEDIATE) or stamp the time (timed). */
+    fun onEnterBackground() {
+        if (!isUnlocked || autoLockSuspends > 0) return
+        if (autoLockMode == AutoLockMode.IMMEDIATE) lock()
+        else backgroundedAt = SystemClock.elapsedRealtime()
+    }
+
+    /** App returned: lock if it was away past the timed threshold. */
+    fun onEnterForeground() {
+        if (isUnlocked && autoLockSuspends == 0) {
+            val bg = backgroundedAt
+            if (bg != null && SystemClock.elapsedRealtime() - bg >= autoLockMode.thresholdMs()) lock()
+        }
+        backgroundedAt = null
+        // A returned foreground means any system UI we launched is finished; clear
+        // any suspend a callback-less dismissal may have left dangling (self-heal).
+        autoLockSuspends = 0
+    }
 
     // --- navigation ----------------------------------------------------------
 
@@ -299,22 +338,30 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun changePassword(current: String, newPassword: String, onResult: (Boolean) -> Unit) {
         val blob = currentBlob
-        val key = vmk
+        // Copy the VMK: a concurrent lock() (auto-lock) zeroes the live array, and
+        // the Argon2 validation below is a long window — rewrapping a zeroed key
+        // would brick the vault while reporting success.
+        val key = vmk?.copyOf()
         if (blob == null || key == null) { onResult(false); return }
         val newPw = newPassword.toCharArray()
         viewModelScope.launch {
-            val ok = withContext(Dispatchers.Default) {
-                runCatching { VaultCrypto.unlock(blob, current.toCharArray()) }.isSuccess
+            try {
+                val ok = withContext(Dispatchers.Default) {
+                    runCatching { VaultCrypto.unlock(blob, current.toCharArray()) }.isSuccess
+                }
+                if (!ok) { onResult(false); return@launch }
+                // Serialize with persist() so the rewrapped header isn't clobbered.
+                saveMutex.withLock {
+                    val base = currentBlob ?: blob
+                    val newBlob = withContext(Dispatchers.Default) { VaultCrypto.rewrap(base, key, newPw) }
+                    store.saveBlob(newBlob)
+                    currentBlob = newBlob
+                }
+                onResult(true)
+            } finally {
+                key.fill(0)
+                newPw.fill(' ')
             }
-            if (!ok) { onResult(false); return@launch }
-            // Serialize with persist() so the rewrapped header isn't clobbered.
-            saveMutex.withLock {
-                val base = currentBlob ?: blob
-                val newBlob = withContext(Dispatchers.Default) { VaultCrypto.rewrap(base, key, newPw) }
-                store.saveBlob(newBlob)
-                currentBlob = newBlob
-            }
-            onResult(true)
         }
     }
 
@@ -358,6 +405,10 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
      * merge into the current vault (skipping exact duplicates).
      */
     suspend fun restore(blob: String, backupPassword: String): RestoreResult {
+        // Must be unlocked: restore mutates the in-memory list and persist() only
+        // writes when the VMK is present. Without this guard a restore run while
+        // locked would report success but silently save nothing.
+        if (vmk == null || currentBlob == null) return RestoreResult.BadFile
         val decoded = withContext(Dispatchers.Default) {
             runCatching {
                 val key = VaultCrypto.unlock(blob, backupPassword.toCharArray())
@@ -382,18 +433,25 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Reseal the data under the session VMK (no KDF) and store it. */
     private fun persist() {
-        val key = vmk ?: return
+        // Copy the VMK: the reseal runs on a background coroutine, and a concurrent
+        // lock() (auto-lock / "Lock now") zeroes the live array — resealing under a
+        // zeroed key would encrypt the vault so no password can ever open it.
+        val key = vmk?.copyOf() ?: return
         val snapshot = accounts
         viewModelScope.launch {
-            saveMutex.withLock {
-                // Read the blob inside the lock so a concurrent password change
-                // (which rewrites the header) is never clobbered by a stale reseal.
-                val blob = currentBlob ?: return@withLock
-                val newBlob = withContext(Dispatchers.Default) {
-                    VaultCrypto.resealData(blob, key, VaultModel.serialize(snapshot).toByteArray(Charsets.UTF_8))
+            try {
+                saveMutex.withLock {
+                    // Read the blob inside the lock so a concurrent password change
+                    // (which rewrites the header) is never clobbered by a stale reseal.
+                    val blob = currentBlob ?: return@withLock
+                    val newBlob = withContext(Dispatchers.Default) {
+                        VaultCrypto.resealData(blob, key, VaultModel.serialize(snapshot).toByteArray(Charsets.UTF_8))
+                    }
+                    store.saveBlob(newBlob)
+                    currentBlob = newBlob
                 }
-                store.saveBlob(newBlob)
-                currentBlob = newBlob
+            } finally {
+                key.fill(0)
             }
         }
     }
