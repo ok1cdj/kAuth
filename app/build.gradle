@@ -115,6 +115,15 @@ dependencies {
     // Optional biometric unlock (BiometricPrompt + Keystore-bound key).
     implementation 'androidx.biometric:biometric:1.1.0'
 
+    // Force a modern Fragment. biometric:1.1.0 transitively pins
+    // fragment:1.2.5, whose FragmentActivity still validates activity-result
+    // request codes to the lower 16 bits. androidx.activity 1.10.1's
+    // ActivityResultRegistry generates codes above that range, so launching any
+    // ActivityResultContract (camera permission, SAF export/restore) throws
+    // "Can only use lower 16 bits for requestCode" and crashes. Fragment 1.3.0+
+    // delegates to the registry and drops that check.
+    implementation 'androidx.fragment:fragment:1.8.6'
+
     // Coroutines
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
 }
