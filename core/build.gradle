@@ -1,0 +1,40 @@
+// Pure Kotlin/JVM module — the TOTP/HOTP engine, otpauth parsing, Google
+// Authenticator migration decoding and the vault crypto. It must NOT depend on
+// any Android API, which is enforced structurally: this is a kotlin.jvm module,
+// so android.* simply isn't on the classpath. Everything here runs as plain
+// `:core:test` (no emulator, no Robolectric), against the RFC test vectors.
+plugins {
+    id 'org.jetbrains.kotlin.jvm'
+}
+
+// Target JVM 17 bytecode (matches :app) while running on whatever JDK 17+ is
+// installed — no toolchain provisioning, same as the app module.
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+    }
+}
+
+dependencies {
+    // Argon2id key derivation. The JDK has no scrypt/Argon2, so this one pure-Java
+    // library provides the KDF; AES-256-GCM and HMAC come from javax.crypto. It is
+    // pure JVM, so it works inside this module and its unit tests unchanged.
+    implementation 'org.bouncycastle:bcprov-jdk18on:1.78.1'
+
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+test {
+    useJUnitPlatform()
+    testLogging {
+        events "passed", "skipped", "failed"
+        exceptionFormat "full"
+    }
+}

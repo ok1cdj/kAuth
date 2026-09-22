@@ -1,0 +1,22 @@
+# Secrets & signing — NEVER commit
+local.properties
+keystore/
+*.jks
+*.keystore
+
+# Backup vaults exported during testing — never commit real secrets
+*.kauth
+
+# Build output
+.gradle/
+build/
+app/build/
+core/build/
+captures/
+kauth-*.apk
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+.DS_Store
+*.log

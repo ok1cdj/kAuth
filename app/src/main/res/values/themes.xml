@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Plain black/white NoActionBar host theme; all real UI is Compose + MMD.
+         Based on a platform theme to avoid pulling in Material Components XML. -->
+    <style name="Theme.KAuth" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@color/white</item>
+        <item name="android:navigationBarColor">@color/white</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>

@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- app_name is a proper noun — same in Czech. -->
+    <string name="app_name">kAuth</string>
+
+    <!-- Generic -->
+    <string name="add">Přidat</string>
+    <string name="back">Zpět</string>
+    <string name="close">Zavřít</string>
+    <string name="cancel">Zrušit</string>
+    <string name="delete">Smazat</string>
+    <string name="copy">Kopírovat</string>
+    <string name="save">Uložit</string>
+    <string name="settings">Nastavení</string>
+    <string name="about">O aplikaci</string>
+    <string name="code_copied">Kód zkopírován</string>
+
+    <!-- First-run password setup -->
+    <string name="setup_title">Vytvořte hlavní heslo</string>
+    <string name="setup_intro">Tímto heslem se šifrují vaše účty. Je jediným klíčem — obnovení není možné. Když ho zapomenete, o účty přijdete.</string>
+    <string name="setup_password_hint">Hlavní heslo</string>
+    <string name="setup_confirm_hint">Potvrďte heslo</string>
+    <string name="setup_create_button">Vytvořit trezor</string>
+    <string name="setup_password_mismatch">Hesla se neshodují</string>
+    <string name="setup_password_too_weak">Zvolte delší a méně zřejmé heslo (alespoň %1$d znaků)</string>
+
+    <!-- Strength meter -->
+    <string name="strength_label">Síla: %1$s</string>
+    <string name="strength_too_short">příliš krátké</string>
+    <string name="strength_weak">slabé</string>
+    <string name="strength_fair">ucházející</string>
+    <string name="strength_good">dobré</string>
+    <string name="strength_strong">silné</string>
+
+    <!-- Unlock -->
+    <string name="unlock_title">kAuth</string>
+    <string name="unlock_prompt">Zadejte hlavní heslo</string>
+    <string name="unlock_button">Odemknout</string>
+    <string name="unlock_wrong_password">Špatné heslo</string>
+
+    <!-- Accounts list -->
+    <string name="accounts_title">Účty</string>
+    <string name="accounts_empty">Zatím žádné účty. Přidejte je tlačítkem +.</string>
+    <string name="seconds_left">%1$d s</string>
+    <string name="hotp_next">Další</string>
+    <string name="lock_now">Zamknout</string>
+    <string name="search">Hledat</string>
+    <string name="search_no_match">Žádné odpovídající účty</string>
+
+    <!-- Biometric unlock -->
+    <string name="unlock_biometric">Použít biometrii</string>
+    <string name="biometric_enable">Zapnout biometrické odemknutí</string>
+    <string name="biometric_enable_sub">Odemknutí otiskem prstu; heslo zůstává záložní</string>
+    <string name="biometric_disable">Vypnout biometrické odemknutí</string>
+    <string name="biometric_disable_sub">Odebrat biometrický klíč z tohoto zařízení</string>
+    <string name="bio_enable_title">Zapnout biometrické odemknutí</string>
+    <string name="bio_unlock_title">Odemknout kAuth</string>
+    <string name="bio_prompt_subtitle">Potvrďte svou totožnost</string>
+    <string name="bio_enabled">Biometrické odemknutí zapnuto</string>
+    <string name="bio_error">Biometrické odemknutí selhalo</string>
+    <string name="bio_invalidated">Biometrie se změnila — odemkněte heslem a zapněte znovu.</string>
+
+    <!-- Auto-lock -->
+    <string name="auto_lock_label">Automatické zamčení</string>
+    <string name="auto_lock_immediate">Ihned</string>
+    <string name="auto_lock_1min">1 min</string>
+    <string name="auto_lock_5min">5 min</string>
+    <string name="auto_lock_never">Nikdy</string>
+
+    <!-- Add-account chooser -->
+    <string name="add_title">Přidat účet</string>
+    <string name="add_scan">Naskenovat QR kód</string>
+    <string name="add_scan_sub">Vyfoťte QR kód fotoaparátem</string>
+    <string name="add_paste">Vložit text</string>
+    <string name="add_paste_sub">Odkaz otpauth:// nebo migrační</string>
+    <string name="add_manual">Zadat ručně</string>
+    <string name="add_manual_sub">Napište tajný klíč a volby</string>
+
+    <!-- Manual entry -->
+    <string name="manual_title">Ruční zadání</string>
+    <string name="field_issuer">Vydavatel (např. GitHub)</string>
+    <string name="field_account">Účet (např. vy@example.com)</string>
+    <string name="field_secret">Tajný klíč (Base32)</string>
+    <string name="field_algorithm">Algoritmus</string>
+    <string name="field_digits">Počet číslic</string>
+    <string name="field_period">Perioda (sekundy)</string>
+    <string name="field_type">Typ</string>
+    <string name="type_totp">Časový (TOTP)</string>
+    <string name="type_hotp">Čítačový (HOTP)</string>
+    <string name="manual_invalid_secret">Tajný klíč není platný Base32</string>
+
+    <!-- Paste text -->
+    <string name="paste_title">Vložit odkaz</string>
+    <string name="paste_hint">otpauth://… nebo otpauth-migration://…</string>
+    <string name="paste_button">Přidat z textu</string>
+    <string name="paste_invalid">Nerozpoznaný odkaz otpauth</string>
+
+    <!-- Camera scan -->
+    <string name="scan_title">Naskenovat QR kód</string>
+    <string name="scan_instructions">Zamiřte na QR kód a vyfoťte.</string>
+    <string name="scan_capture">Vyfotit</string>
+    <string name="scan_permission_needed">Ke skenování je potřeba přístup k fotoaparátu.</string>
+    <string name="scan_grant">Povolit fotoaparát</string>
+    <string name="scan_no_qr">Nenalezen žádný QR kód. Zkuste to znovu.</string>
+    <string name="scan_not_otp">QR kód není autentikátorový kód.</string>
+
+    <!-- Google Authenticator import -->
+    <string name="import_title">Import účtů</string>
+    <string name="import_progress">Čeká: %1$d k přidání, %2$d selhalo</string>
+    <string name="import_part">Část %1$d z %2$d</string>
+    <string name="import_scan_more">Naskenovat další část</string>
+    <string name="import_finish">Dokončit import</string>
+    <string name="import_summary_title">Import dokončen</string>
+    <string name="import_summary_body">Přidáno %1$d, přeskočeno %2$d duplicit, %3$d selhalo.</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Nastavení</string>
+    <string name="change_password">Změnit hlavní heslo</string>
+    <string name="change_password_sub">Zašifrovat trezor novým heslem</string>
+    <string name="export_backup">Exportovat šifrovanou zálohu</string>
+    <string name="export_backup_sub">Uložit celý trezor do souboru</string>
+    <string name="restore_backup">Obnovit ze zálohy</string>
+    <string name="restore_backup_sub">Sloučit soubor zálohy do trezoru</string>
+    <string name="export_done">Záloha exportována</string>
+    <string name="export_failed">Export selhal</string>
+
+    <!-- Change password dialog -->
+    <string name="change_password_title">Změna hesla</string>
+    <string name="current_password">Současné heslo</string>
+    <string name="new_password">Nové heslo</string>
+    <string name="confirm_new_password">Potvrďte nové heslo</string>
+    <string name="change_password_button">Změnit</string>
+    <string name="change_password_wrong">Současné heslo je špatné</string>
+    <string name="change_password_done">Heslo změněno</string>
+
+    <!-- Restore dialog -->
+    <string name="restore_title">Obnovit zálohu</string>
+    <string name="restore_password">Heslo zálohy</string>
+    <string name="restore_button">Obnovit</string>
+    <string name="restore_result">Přidáno %1$d, přeskočeno %2$d duplicit.</string>
+    <string name="restore_wrong_password">Špatné heslo zálohy</string>
+    <string name="restore_bad_file">Soubor zálohy se nepodařilo přečíst</string>
+
+    <!-- Delete confirm -->
+    <string name="delete_title">Smazat účet?</string>
+    <string name="delete_body">Odebrat %1$s z tohoto zařízení? Ověřte, že se dokážete přihlásit i jinak.</string>
+
+    <!-- About -->
+    <string name="about_title">kAuth</string>
+    <string name="about_version">Verze %1$s</string>
+    <string name="about_author">od Ondřeje Koloničného</string>
+    <string name="about_desc">Minimalistický autentikátor TOTP/HOTP pro Mudita Kompakt. Plně offline — vaše tajné klíče jsou šifrovány hlavním heslem a nikdy neopustí zařízení.</string>
+    <string name="about_security_title">Žádné obnovení hesla</string>
+    <string name="about_security">Hlavní heslo je jediným klíčem k vašim účtům. Když ho zapomenete, trezor nikdo nedešifruje. Uchovávejte šifrovanou zálohu.</string>
+    <string name="about_license">Licence: GPL-3.0</string>
+    <string name="about_github">GitHub</string>
+</resources>
