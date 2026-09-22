@@ -170,9 +170,10 @@ private fun App() {
     ) {
         when (vm.screen) {
             Screen.Loading -> {}
-            Screen.Setup -> SetupScreen(onCreate = vm::createVault)
+            Screen.Setup -> SetupScreen(busy = vm.busy, onCreate = vm::createVault)
             Screen.Unlock -> UnlockScreen(
                 error = vm.unlockError,
+                busy = vm.busy,
                 biometricEnabled = vm.biometricEnabled && biometricAvailable,
                 onUnlock = vm::unlock,
                 onBiometric = { promptBiometricUnlock(context, vm) },

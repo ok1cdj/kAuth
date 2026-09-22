@@ -66,12 +66,14 @@ object VaultCrypto {
     private val rng = SecureRandom()
 
     /**
-     * Argon2id cost parameters. Defaults (64 MiB, 3 iterations, 1 lane) are a
-     * deliberate compromise for the low-power Kompakt CPU while staying well above
-     * the "don't bother" line for a memory-hard KDF.
+     * Argon2id cost parameters. The default (32 MiB, 3 iterations, 1 lane) is a
+     * deliberate compromise for the low-power Kompakt CPU — memory-hard and well
+     * above OWASP's Argon2id minimums, while keeping unlock responsive (~1–2 s on
+     * the device rather than several). The chosen params are stored per-vault in
+     * the header, so existing vaults keep whatever they were created with.
      */
     data class KdfParams(
-        val memoryKib: Int = 65_536,
+        val memoryKib: Int = 32_768,
         val iterations: Int = 3,
         val parallelism: Int = 1,
     )

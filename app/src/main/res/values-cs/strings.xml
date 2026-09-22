@@ -21,6 +21,7 @@
     <string name="setup_password_hint">Hlavní heslo</string>
     <string name="setup_confirm_hint">Potvrďte heslo</string>
     <string name="setup_create_button">Vytvořit trezor</string>
+    <string name="creating">Vytvářím trezor…</string>
     <string name="setup_password_mismatch">Hesla se neshodují</string>
     <string name="setup_password_too_weak">Zvolte delší a méně zřejmé heslo (alespoň %1$d znaků)</string>
 
@@ -36,6 +37,7 @@
     <string name="unlock_title">kAuth</string>
     <string name="unlock_prompt">Zadejte hlavní heslo</string>
     <string name="unlock_button">Odemknout</string>
+    <string name="unlocking">Odemykám…</string>
     <string name="unlock_wrong_password">Špatné heslo</string>
 
     <!-- Accounts list -->

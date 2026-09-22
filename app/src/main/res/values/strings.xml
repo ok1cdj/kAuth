@@ -20,6 +20,7 @@
     <string name="setup_password_hint">Master password</string>
     <string name="setup_confirm_hint">Confirm password</string>
     <string name="setup_create_button">Create vault</string>
+    <string name="creating">Creating vault…</string>
     <string name="setup_password_mismatch">Passwords do not match</string>
     <string name="setup_password_too_weak">Choose a longer, less obvious password (at least %1$d characters)</string>
 
@@ -35,6 +36,7 @@
     <string name="unlock_title">kAuth</string>
     <string name="unlock_prompt">Enter master password</string>
     <string name="unlock_button">Unlock</string>
+    <string name="unlocking">Unlocking…</string>
     <string name="unlock_wrong_password">Wrong password</string>
 
     <!-- Accounts list -->

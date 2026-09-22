@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -49,6 +50,7 @@ import com.ok1cdj.kauth.core.PasswordStrength.Level
 @Composable
 fun UnlockScreen(
     error: Boolean,
+    busy: Boolean = false,
     biometricEnabled: Boolean = false,
     onUnlock: (String) -> Unit,
     onBiometric: () -> Unit = {},
@@ -98,9 +100,9 @@ fun UnlockScreen(
         }
         Spacer(Modifier.height(20.dp))
         MmdButton(
-            text = stringResource(R.string.unlock_button),
+            text = stringResource(if (busy) R.string.unlocking else R.string.unlock_button),
             modifier = Modifier.fillMaxWidth(),
-            enabled = password.isNotEmpty(),
+            enabled = password.isNotEmpty() && !busy,
             onClick = { onUnlock(password) },
         )
         if (biometricEnabled) {
@@ -108,6 +110,7 @@ fun UnlockScreen(
             MmdButton(
                 text = stringResource(R.string.unlock_biometric),
                 modifier = Modifier.fillMaxWidth(),
+                enabled = !busy,
                 onClick = onBiometric,
             )
         }
@@ -116,7 +119,7 @@ fun UnlockScreen(
 
 /** First-run: create the master password. */
 @Composable
-fun SetupScreen(onCreate: (String) -> Unit) {
+fun SetupScreen(busy: Boolean = false, onCreate: (String) -> Unit) {
     var password by remember { mutableStateOf("") }
     var confirm by remember { mutableStateOf("") }
 
@@ -160,23 +163,27 @@ fun SetupScreen(onCreate: (String) -> Unit) {
             isPassword = true,
         )
 
+        // Fixed-height slot so showing/hiding the validation message never shifts
+        // the Create button down (it used to push the button below the fold).
         Spacer(Modifier.height(8.dp))
-        when {
-            password.isNotEmpty() && !acceptable ->
-                TextMMD(
-                    text = stringResource(R.string.setup_password_too_weak, PasswordStrength.MIN_LENGTH),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-            confirm.isNotEmpty() && !matches ->
-                TextMMD(text = stringResource(R.string.setup_password_mismatch), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        Box(modifier = Modifier.fillMaxWidth().heightIn(min = 40.dp)) {
+            when {
+                password.isNotEmpty() && !acceptable ->
+                    TextMMD(
+                        text = stringResource(R.string.setup_password_too_weak, PasswordStrength.MIN_LENGTH),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                confirm.isNotEmpty() && !matches ->
+                    TextMMD(text = stringResource(R.string.setup_password_mismatch), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
         }
 
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(12.dp))
         MmdButton(
-            text = stringResource(R.string.setup_create_button),
+            text = stringResource(if (busy) R.string.creating else R.string.setup_create_button),
             modifier = Modifier.fillMaxWidth(),
-            enabled = canCreate,
+            enabled = canCreate && !busy,
             onClick = { onCreate(password) },
         )
     }

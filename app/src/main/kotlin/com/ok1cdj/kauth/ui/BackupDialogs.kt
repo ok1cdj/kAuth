@@ -65,9 +65,9 @@ fun ChangePasswordDialog(vm: AuthViewModel, onDismiss: () -> Unit) {
 
         Spacer(Modifier.height(12.dp))
         MmdButton(
-            text = stringResource(R.string.change_password_button),
+            text = stringResource(if (vm.busy) R.string.unlocking else R.string.change_password_button),
             modifier = Modifier.fillMaxWidth(),
-            enabled = canSubmit,
+            enabled = canSubmit && !vm.busy,
             onClick = {
                 vm.changePassword(current, newPassword) { ok ->
                     if (ok) {

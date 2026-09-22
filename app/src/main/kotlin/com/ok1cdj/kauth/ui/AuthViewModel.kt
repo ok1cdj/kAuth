@@ -95,6 +95,11 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
     var unlockError: Boolean by mutableStateOf(false)
         private set
 
+    /** True while a slow KDF operation (create / unlock / change password) runs,
+     *  so the UI can show progress instead of appearing frozen. */
+    var busy: Boolean by mutableStateOf(false)
+        private set
+
     // --- settings / biometric ------------------------------------------------
     var autoLockMode: AutoLockMode by mutableStateOf(AutoLockMode.IMMEDIATE)
         private set
@@ -143,38 +148,50 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Create the vault with a new master password (first run). */
     fun createVault(password: String) {
+        if (busy) return
         val pw = password.toCharArray()
+        busy = true
         viewModelScope.launch {
-            val sealed = withContext(Dispatchers.Default) {
-                VaultCrypto.create(VaultModel.serialize(emptyList()).toByteArray(Charsets.UTF_8), pw)
+            try {
+                val sealed = withContext(Dispatchers.Default) {
+                    VaultCrypto.create(VaultModel.serialize(emptyList()).toByteArray(Charsets.UTF_8), pw)
+                }
+                store.saveBlob(sealed.blob)
+                currentBlob = sealed.blob
+                vmk = sealed.vmk
+                accounts = emptyList()
+                screen = Screen.Accounts
+            } finally {
+                busy = false
             }
-            store.saveBlob(sealed.blob)
-            currentBlob = sealed.blob
-            vmk = sealed.vmk
-            accounts = emptyList()
-            screen = Screen.Accounts
         }
     }
 
     /** Attempt to unlock with the master [password]. */
     fun unlock(password: String) {
+        if (busy) return
         unlockError = false
         val pw = password.toCharArray()
+        busy = true
         viewModelScope.launch {
-            val blob = currentBlob ?: store.loadBlob()?.also { currentBlob = it }
-            if (blob == null) { screen = Screen.Setup; return@launch }
-            val result = withContext(Dispatchers.Default) {
-                runCatching {
-                    val key = VaultCrypto.unlock(blob, pw)
-                    key to VaultCrypto.decryptData(blob, key)
+            try {
+                val blob = currentBlob ?: store.loadBlob()?.also { currentBlob = it }
+                if (blob == null) { screen = Screen.Setup; return@launch }
+                val result = withContext(Dispatchers.Default) {
+                    runCatching {
+                        val key = VaultCrypto.unlock(blob, pw)
+                        key to VaultCrypto.decryptData(blob, key)
+                    }
                 }
-            }
-            result.onSuccess { (key, bytes) ->
-                vmk = key
-                accounts = VaultModel.deserialize(String(bytes, Charsets.UTF_8))
-                screen = Screen.Accounts
-            }.onFailure {
-                unlockError = true // WrongPassword or a corrupt vault
+                result.onSuccess { (key, bytes) ->
+                    vmk = key
+                    accounts = VaultModel.deserialize(String(bytes, Charsets.UTF_8))
+                    screen = Screen.Accounts
+                }.onFailure {
+                    unlockError = true // WrongPassword or a corrupt vault
+                }
+            } finally {
+                busy = false
             }
         }
     }
@@ -344,6 +361,7 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
         val key = vmk?.copyOf()
         if (blob == null || key == null) { onResult(false); return }
         val newPw = newPassword.toCharArray()
+        busy = true
         viewModelScope.launch {
             try {
                 val ok = withContext(Dispatchers.Default) {
@@ -361,6 +379,7 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
             } finally {
                 key.fill(0)
                 newPw.fill(' ')
+                busy = false
             }
         }
     }
