@@ -44,8 +44,17 @@ Services, no tracking.
   when a scanned or imported account has a missing or unhelpful issuer.
 - **Search/filter** for long account lists.
 - **Encrypted backup** to a single file (same Argon2id / AES-256-GCM as the live
-  vault), restorable with the master password. This is the only backup path —
-  there is no cloud sync.
+  vault), restorable with the master password. There is no cloud sync.
+- **Automatic backup** (opt-in, Settings → Automatic backup): pick a folder once
+  and kAuth rewrites one encrypted `kauth-autobackup.kauth` there after every
+  change (add, edit, delete, import, restore, password change). Same format as
+  the manual backup; written in the same step as the change, with no background
+  service. The file is replaced atomically: written and verified as a `.tmp`
+  first, so an interrupted write never destroys the last good backup.
+- **Export to other apps** in the standard `otpauth://` format: show any account
+  as a QR code (tap an account → Show QR code), or save all accounts to a text
+  file with one URI per line (Settings → Export accounts). That file is
+  **unencrypted**. kAuth warns before writing it; delete it right after use.
 - **Screenshot / screen-capture prevention** (`FLAG_SECURE`).
 - English and Czech, following the device language.
 
@@ -102,7 +111,8 @@ GitHub Release (secrets: `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`,
 
 Cloud sync; importing from other authenticators' on-device databases (root);
 dark theme; in-app language switch. The only ways in are QR/URI import and
-restoring your own encrypted backup.
+restoring your own encrypted backup; the ways out are that backup and the
+`otpauth://` export.
 
 ## License
 

@@ -45,6 +45,10 @@ fun SettingsDialog(
     onChangePassword: () -> Unit,
     onExport: () -> Unit,
     onRestore: () -> Unit,
+    autoBackupFolder: String?,
+    onEnableAutoBackup: () -> Unit,
+    onDisableAutoBackup: () -> Unit,
+    onExportOtpauth: () -> Unit,
     onLock: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -84,6 +88,15 @@ fun SettingsDialog(
             ActionRow(stringResource(R.string.export_backup), stringResource(R.string.export_backup_sub), onExport)
             Spacer(Modifier.height(8.dp))
             ActionRow(stringResource(R.string.restore_backup), stringResource(R.string.restore_backup_sub), onRestore)
+            Spacer(Modifier.height(8.dp))
+            // Automatic backup — tap to pick a folder when off, tap to stop when on.
+            if (autoBackupFolder != null) {
+                ActionRow(stringResource(R.string.auto_backup), stringResource(R.string.auto_backup_on_sub, autoBackupFolder), onDisableAutoBackup)
+            } else {
+                ActionRow(stringResource(R.string.auto_backup), stringResource(R.string.auto_backup_off_sub), onEnableAutoBackup)
+            }
+            Spacer(Modifier.height(8.dp))
+            ActionRow(stringResource(R.string.export_otpauth), stringResource(R.string.export_otpauth_sub), onExportOtpauth)
         }
 
         Spacer(Modifier.height(16.dp))

@@ -11,6 +11,8 @@
 package com.ok1cdj.kauth.ui
 
 import android.app.Application
+import android.content.Intent
+import android.net.Uri
 import android.os.SystemClock
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -25,6 +27,7 @@ import com.ok1cdj.kauth.core.VaultCrypto
 import com.ok1cdj.kauth.core.VaultFormatException
 import com.ok1cdj.kauth.core.VaultModel
 import com.ok1cdj.kauth.core.WrongPasswordException
+import com.ok1cdj.kauth.data.AutoBackup
 import com.ok1cdj.kauth.data.AutoLockMode
 import com.ok1cdj.kauth.data.BiometricMaterial
 import com.ok1cdj.kauth.data.SettingsStore
@@ -77,6 +80,7 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
 
     private val store = VaultStore(app)
     private val settings = SettingsStore(app)
+    private val autoBackupWriter = AutoBackup(app)
     private val saveMutex = Mutex()
 
     /** The vault master key — kept in memory only while unlocked, zeroed on lock. */
@@ -106,6 +110,14 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
     var biometricEnabled: Boolean by mutableStateOf(false)
         private set
     var biometricMaterial: BiometricMaterial? by mutableStateOf(null)
+        private set
+
+    /** Folder that receives an encrypted backup on every vault change; null = off. */
+    var autoBackupTree: Uri? by mutableStateOf(null)
+        private set
+
+    /** Set when an automatic backup write failed; the UI shows it once. */
+    var autoBackupFailed: Boolean by mutableStateOf(false)
         private set
 
     // Auto-lock policy lives here (not in the Activity). Backgrounding a SAF
@@ -140,6 +152,7 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
             autoLockMode = settings.loadAutoLockMode()
             biometricMaterial = settings.loadBiometric()
             biometricEnabled = biometricMaterial != null
+            autoBackupTree = settings.loadAutoBackupTree()?.let(Uri::parse)
             screen = if (currentBlob != null) Screen.Unlock else Screen.Setup
         }
     }
@@ -267,6 +280,7 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
     fun showPaste() { screen = Screen.Paste }
     fun showScan() { screen = Screen.Scan }
     fun consumeImportSummary() { importSummary = null }
+    fun consumeAutoBackupFailed() { autoBackupFailed = false }
 
     // --- account mutations ---------------------------------------------------
 
@@ -387,6 +401,7 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
                     val newBlob = withContext(Dispatchers.Default) { VaultCrypto.rewrap(base, key, newPw) }
                     store.saveBlob(newBlob)
                     currentBlob = newBlob
+                    autoBackup(newBlob)
                 }
                 onResult(true)
             } finally {
@@ -461,6 +476,53 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
         return RestoreResult.Ok(merged.added, merged.skipped)
     }
 
+    /**
+     * All accounts as `otpauth://` URIs, one per line — the plaintext "take your
+     * data elsewhere" export. Unencrypted by design; the UI warns before saving.
+     */
+    fun exportOtpauthText(): String = OtpUri.buildAll(accounts)
+
+    // --- automatic backup ----------------------------------------------------
+
+    /**
+     * Turn on automatic backups into the SAF folder [tree] and write the first one
+     * right away. Reverts and reports false if that first write fails.
+     */
+    suspend fun enableAutoBackup(tree: Uri): Boolean {
+        val resolver = getApplication<Application>().contentResolver
+        val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        if (runCatching { resolver.takePersistableUriPermission(tree, flags) }.isFailure) return false
+        // Under the save lock so a concurrent persist() can't slip between the first
+        // write and switching the feature on (leaving the file one change behind).
+        val ok = saveMutex.withLock {
+            val blob = currentBlob
+            (blob != null && autoBackupWriter.write(tree, blob)).also { if (it) autoBackupTree = tree }
+        }
+        if (!ok) {
+            runCatching { resolver.releasePersistableUriPermission(tree, flags) }
+            return false
+        }
+        settings.saveAutoBackupTree(tree.toString())
+        return true
+    }
+
+    /** Stop automatic backups. Files already written are left in place. */
+    fun disableAutoBackup() {
+        val tree = autoBackupTree ?: return
+        autoBackupTree = null
+        val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        runCatching { getApplication<Application>().contentResolver.releasePersistableUriPermission(tree, flags) }
+        viewModelScope.launch { settings.clearAutoBackupTree() }
+    }
+
+    fun autoBackupFolderName(): String? = autoBackupTree?.let(autoBackupWriter::folderName)
+
+    /** Mirror a freshly saved vault blob to the backup folder (caller holds [saveMutex]). */
+    private suspend fun autoBackup(blob: String) {
+        val tree = autoBackupTree ?: return
+        if (!autoBackupWriter.write(tree, blob)) autoBackupFailed = true
+    }
+
     // --- persistence ---------------------------------------------------------
 
     /** Reseal the data under the session VMK (no KDF) and store it. */
@@ -481,6 +543,7 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
                     }
                     store.saveBlob(newBlob)
                     currentBlob = newBlob
+                    autoBackup(newBlob)
                 }
             } finally {
                 key.fill(0)

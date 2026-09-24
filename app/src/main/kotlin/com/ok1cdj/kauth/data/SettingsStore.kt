@@ -76,9 +76,22 @@ class SettingsStore(private val context: Context) {
         }
     }
 
+    /** The SAF tree URI chosen for automatic backups, or `null` when off. */
+    suspend fun loadAutoBackupTree(): String? =
+        context.settingsStore.data.first()[AUTO_BACKUP_TREE]
+
+    suspend fun saveAutoBackupTree(uri: String) {
+        context.settingsStore.edit { it[AUTO_BACKUP_TREE] = uri }
+    }
+
+    suspend fun clearAutoBackupTree() {
+        context.settingsStore.edit { it.remove(AUTO_BACKUP_TREE) }
+    }
+
     private companion object {
         val AUTO_LOCK = stringPreferencesKey("auto_lock_mode")
         val BIO_CT = stringPreferencesKey("bio_ct")
         val BIO_IV = stringPreferencesKey("bio_iv")
+        val AUTO_BACKUP_TREE = stringPreferencesKey("auto_backup_tree")
     }
 }

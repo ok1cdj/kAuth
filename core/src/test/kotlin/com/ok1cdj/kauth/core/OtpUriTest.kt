@@ -84,6 +84,26 @@ class OtpUriTest {
     }
 
     @Test
+    fun `buildAll writes one parseable line per account`() {
+        val accounts = listOf(
+            OtpAccount(issuer = "ACME Co", name = "john@example.com", secret = "JBSWY3DPEHPK3PXP"),
+            OtpAccount(issuer = "Příklad: s.r.o.", name = "jana nováková", secret = "GEZDGNBVGY3TQOJQ", algorithm = OtpAlgorithm.SHA256, digits = 8, period = 60),
+            OtpAccount(issuer = "Bank", name = "", secret = "MFRGGZDFMZTWQ2LK", type = OtpType.HOTP, counter = 17),
+            OtpAccount(issuer = "", name = "plain", secret = "JBSWY3DPEHPK3PXP", algorithm = OtpAlgorithm.SHA512),
+        )
+        val text = OtpUri.buildAll(accounts)
+        assertTrue(text.endsWith("\n"))
+        val lines = text.lines().filter { it.isNotEmpty() }
+        assertEquals(accounts.size, lines.size)
+        assertEquals(accounts, lines.map { OtpUri.parse(it) })
+    }
+
+    @Test
+    fun `buildAll of no accounts is empty`() {
+        assertEquals("", OtpUri.buildAll(emptyList()))
+    }
+
+    @Test
     fun `isOtpAuth detects the scheme`() {
         assertTrue(OtpUri.isOtpAuth("otpauth://totp/a?secret=JBSWY3DPEHPK3PXP"))
         assertTrue(OtpUri.isOtpAuth("  OTPAUTH://totp/a?secret=x"))

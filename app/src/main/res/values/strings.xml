@@ -124,6 +124,19 @@
     <string name="restore_backup_sub">Merge a backup file into this vault</string>
     <string name="export_done">Backup exported</string>
     <string name="export_failed">Export failed</string>
+    <string name="auto_backup">Automatic backup</string>
+    <string name="auto_backup_off_sub">Off — choose a folder to save an encrypted backup after every change</string>
+    <string name="auto_backup_on_sub">On — %1$s. Tap to turn off</string>
+    <string name="auto_backup_enabled">Automatic backup on</string>
+    <string name="auto_backup_failed">Automatic backup failed — check the folder in Settings</string>
+    <string name="export_otpauth">Export accounts (otpauth)</string>
+    <string name="export_otpauth_sub">Unencrypted text file for other authenticator apps</string>
+    <string name="export_otpauth_title">Unencrypted export</string>
+    <string name="export_otpauth_warning">The file will contain all your secrets in plain text. Anyone who reads it can generate your codes. Delete it as soon as you have imported it elsewhere.</string>
+    <string name="export_otpauth_confirm">I understand, export</string>
+    <string name="export_otpauth_done">Accounts exported — delete the file after use</string>
+    <string name="show_qr">Show QR code</string>
+    <string name="qr_warning">This QR code contains the secret. Show it only to the app you are moving the account to.</string>
 
     <!-- Change password dialog -->
     <string name="change_password_title">Change password</string>

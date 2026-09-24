@@ -48,6 +48,7 @@ import com.ok1cdj.kauth.R
 import com.ok1cdj.kauth.core.Otp
 import com.ok1cdj.kauth.core.OtpAccount
 import com.ok1cdj.kauth.core.OtpType
+import com.ok1cdj.kauth.core.OtpUri
 import kotlinx.coroutines.delay
 
 @Composable
@@ -65,6 +66,7 @@ fun AccountsScreen(
     var actionTarget by remember { mutableStateOf<OtpAccount?>(null) }
     var deleteTarget by remember { mutableStateOf<OtpAccount?>(null) }
     var editTarget by remember { mutableStateOf<OtpAccount?>(null) }
+    var qrTarget by remember { mutableStateOf<OtpAccount?>(null) }
 
     // One shared clock, updated every second. Codes recompute at the period
     // boundary; the countdown number changes each tick — a small area, so the
@@ -154,6 +156,10 @@ fun AccountsScreen(
                 editTarget = acc
                 actionTarget = null
             },
+            onShowQr = {
+                qrTarget = acc
+                actionTarget = null
+            },
             onDelete = {
                 deleteTarget = acc
                 actionTarget = null
@@ -180,6 +186,20 @@ fun AccountsScreen(
             }
             Spacer(Modifier.height(8.dp))
             MmdButton(stringResource(R.string.cancel), modifier = Modifier.fillMaxWidth()) { editTarget = null }
+        }
+    }
+
+    // Export one account to another authenticator: its otpauth:// URI as a QR.
+    // The window is FLAG_SECURE, so the code can't be screenshotted.
+    qrTarget?.let { acc ->
+        MmdDialog(onDismiss = { qrTarget = null }) {
+            TextMMD(text = acc.label(), fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(12.dp))
+            QrCode(text = OtpUri.build(acc), modifier = Modifier.fillMaxWidth())
+            Spacer(Modifier.height(8.dp))
+            TextMMD(text = stringResource(R.string.qr_warning), fontSize = 12.sp)
+            Spacer(Modifier.height(12.dp))
+            MmdButton(stringResource(R.string.close), modifier = Modifier.fillMaxWidth()) { qrTarget = null }
         }
     }
 
@@ -265,6 +285,7 @@ private fun AccountActionsDialog(
     now: Long,
     onCopy: () -> Unit,
     onEdit: () -> Unit,
+    onShowQr: () -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -283,6 +304,8 @@ private fun AccountActionsDialog(
         MmdButton(stringResource(R.string.copy), modifier = Modifier.fillMaxWidth(), onClick = onCopy)
         Spacer(Modifier.height(8.dp))
         MmdButton(stringResource(R.string.edit), modifier = Modifier.fillMaxWidth(), onClick = onEdit)
+        Spacer(Modifier.height(8.dp))
+        MmdButton(stringResource(R.string.show_qr), modifier = Modifier.fillMaxWidth(), onClick = onShowQr)
         Spacer(Modifier.height(8.dp))
         MmdButton(stringResource(R.string.delete), modifier = Modifier.fillMaxWidth(), onClick = onDelete)
         Spacer(Modifier.height(8.dp))

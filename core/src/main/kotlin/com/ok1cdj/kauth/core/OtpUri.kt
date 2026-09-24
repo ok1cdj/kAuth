@@ -55,7 +55,7 @@ object OtpUri {
             else -> throw IllegalArgumentException("unknown otpauth type: '$typeStr'")
         }
 
-        val label = if (slash >= 0) decode(path.substring(slash + 1)) else ""
+        val rawLabel = if (slash >= 0) path.substring(slash + 1) else ""
         val params = parseQuery(query)
 
         val secret = params["secret"]?.replace(" ", "")
@@ -63,10 +63,18 @@ object OtpUri {
         require(Base32.isValid(secret)) { "otpauth secret is not valid Base32" }
 
         // Label is "issuer:account"; the issuer= parameter overrides the prefix.
+        // Split on a literal ':' before decoding, so an issuer containing an
+        // encoded colon (as [build] writes it) stays intact; only when there is no
+        // literal separator fall back to an encoded one ("%3A").
         val labelIssuer: String
         val account: String
+        val rawColon = rawLabel.indexOf(':')
+        val label = decode(rawLabel)
         val colon = label.indexOf(':')
-        if (colon >= 0) {
+        if (rawColon >= 0) {
+            labelIssuer = decode(rawLabel.substring(0, rawColon)).trim()
+            account = decode(rawLabel.substring(rawColon + 1)).trim()
+        } else if (colon >= 0) {
             labelIssuer = label.substring(0, colon).trim()
             account = label.substring(colon + 1).trim()
         } else {
@@ -109,6 +117,10 @@ object OtpUri {
         }
         return "$SCHEME$type/$label?${params.joinToString("&")}"
     }
+
+    /** [build] for every account, one URI per line (with a trailing newline). */
+    fun buildAll(accounts: List<OtpAccount>): String =
+        accounts.joinToString(separator = "\n", postfix = if (accounts.isEmpty()) "" else "\n") { build(it) }
 
     private fun parseQuery(query: String): Map<String, String> {
         if (query.isBlank()) return emptyMap()

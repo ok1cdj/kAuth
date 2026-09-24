@@ -125,6 +125,19 @@
     <string name="restore_backup_sub">Sloučit soubor zálohy do trezoru</string>
     <string name="export_done">Záloha exportována</string>
     <string name="export_failed">Export selhal</string>
+    <string name="auto_backup">Automatická záloha</string>
+    <string name="auto_backup_off_sub">Vypnuto — vyberte složku pro šifrovanou zálohu po každé změně</string>
+    <string name="auto_backup_on_sub">Zapnuto — %1$s. Klepnutím vypnete</string>
+    <string name="auto_backup_enabled">Automatická záloha zapnuta</string>
+    <string name="auto_backup_failed">Automatická záloha selhala — zkontrolujte složku v Nastavení</string>
+    <string name="export_otpauth">Exportovat účty (otpauth)</string>
+    <string name="export_otpauth_sub">Nešifrovaný textový soubor pro jiné autentikátory</string>
+    <string name="export_otpauth_title">Nešifrovaný export</string>
+    <string name="export_otpauth_warning">Soubor bude obsahovat všechna tajemství v čitelné podobě. Kdokoli, kdo ho přečte, může generovat vaše kódy. Po importu jinam ho ihned smažte.</string>
+    <string name="export_otpauth_confirm">Rozumím, exportovat</string>
+    <string name="export_otpauth_done">Účty exportovány — soubor po použití smažte</string>
+    <string name="show_qr">Zobrazit QR kód</string>
+    <string name="qr_warning">Tento QR kód obsahuje tajemství. Ukažte ho jen aplikaci, do které účet přenášíte.</string>
 
     <!-- Change password dialog -->
     <string name="change_password_title">Změna hesla</string>

@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -82,6 +83,7 @@ class MainActivity : FragmentActivity() {
 }
 
 private const val BACKUP_FILENAME = "kauth-backup.kauth"
+private const val OTPAUTH_EXPORT_FILENAME = "kauth-accounts.txt"
 
 private fun Context.findActivity(): FragmentActivity? = when (this) {
     is FragmentActivity -> this
@@ -99,6 +101,7 @@ private fun App() {
     var showSettings by remember { mutableStateOf(false) }
     var showChangePassword by remember { mutableStateOf(false) }
     var restoreBlob by remember { mutableStateOf<String?>(null) }
+    var confirmOtpauthExport by remember { mutableStateOf(false) }
 
     val biometricAvailable = remember { BiometricVault.isAvailable(context) }
 
@@ -119,6 +122,51 @@ private fun App() {
                     Toast.LENGTH_SHORT,
                 ).show()
             }
+        }
+    }
+
+    // SAF: write every account as a plaintext otpauth:// line (after the warning).
+    val otpauthExportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/plain")
+    ) { uri ->
+        vm.endSensitiveOp()
+        if (uri != null) {
+            scope.launch {
+                val text = vm.exportOtpauthText()
+                val ok = runCatching {
+                    context.contentResolver.openOutputStream(uri, "wt")?.use { it.write(text.toByteArray()) }
+                        ?: error("no stream")
+                }.isSuccess
+                Toast.makeText(
+                    context,
+                    if (ok) R.string.export_otpauth_done else R.string.export_failed,
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
+        }
+    }
+
+    // SAF: pick the folder that receives automatic backups.
+    val autoBackupLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        vm.endSensitiveOp()
+        if (uri != null) {
+            scope.launch {
+                Toast.makeText(
+                    context,
+                    if (vm.enableAutoBackup(uri)) R.string.auto_backup_enabled else R.string.auto_backup_failed,
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
+        }
+    }
+
+    // A failed automatic backup is reported once; the vault itself was saved.
+    LaunchedEffect(vm.autoBackupFailed) {
+        if (vm.autoBackupFailed) {
+            Toast.makeText(context, R.string.auto_backup_failed, Toast.LENGTH_LONG).show()
+            vm.consumeAutoBackupFailed()
         }
     }
 
@@ -243,6 +291,10 @@ private fun App() {
             onChangePassword = { showSettings = false; showChangePassword = true },
             onExport = { showSettings = false; vm.beginSensitiveOp(); exportLauncher.launch(BACKUP_FILENAME) },
             onRestore = { showSettings = false; vm.beginSensitiveOp(); restoreLauncher.launch(arrayOf("*/*")) },
+            autoBackupFolder = vm.autoBackupTree?.let { vm.autoBackupFolderName() ?: it.lastPathSegment.orEmpty() },
+            onEnableAutoBackup = { showSettings = false; vm.beginSensitiveOp(); autoBackupLauncher.launch(null) },
+            onDisableAutoBackup = { vm.disableAutoBackup() },
+            onExportOtpauth = { showSettings = false; confirmOtpauthExport = true },
             onLock = { showSettings = false; vm.lock() },
             onDismiss = { showSettings = false },
         )
@@ -250,6 +302,23 @@ private fun App() {
 
     if (showChangePassword) {
         ChangePasswordDialog(vm = vm, onDismiss = { showChangePassword = false })
+    }
+
+    // The plaintext export holds every secret unencrypted — warn before saving.
+    if (confirmOtpauthExport) {
+        MmdDialog(onDismiss = { confirmOtpauthExport = false }) {
+            TextMMD(text = stringResource(R.string.export_otpauth_title), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            TextMMD(text = stringResource(R.string.export_otpauth_warning), fontSize = 13.sp)
+            Spacer(Modifier.height(16.dp))
+            MmdButton(stringResource(R.string.export_otpauth_confirm), modifier = Modifier.fillMaxWidth()) {
+                confirmOtpauthExport = false
+                vm.beginSensitiveOp()
+                otpauthExportLauncher.launch(OTPAUTH_EXPORT_FILENAME)
+            }
+            Spacer(Modifier.height(8.dp))
+            MmdButton(stringResource(R.string.cancel), modifier = Modifier.fillMaxWidth()) { confirmOtpauthExport = false }
+        }
     }
 
     restoreBlob?.let { blob ->
