@@ -145,6 +145,9 @@
     <!-- Delete confirm -->
     <string name="delete_title">Delete account?</string>
     <string name="delete_body">Remove %1$s from this device? Make sure you can still sign in another way.</string>
+    <string name="edit">Edit</string>
+    <string name="edit_title">Edit issuer</string>
+    <string name="edit_duplicate">An identical account already exists</string>
 
     <!-- About -->
     <string name="about_title">kAuth</string>

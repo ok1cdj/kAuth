@@ -146,6 +146,9 @@
     <!-- Delete confirm -->
     <string name="delete_title">Smazat účet?</string>
     <string name="delete_body">Odebrat %1$s z tohoto zařízení? Ověřte, že se dokážete přihlásit i jinak.</string>
+    <string name="edit">Upravit</string>
+    <string name="edit_title">Upravit vydavatele</string>
+    <string name="edit_duplicate">Stejný účet už existuje</string>
 
     <!-- About -->
     <string name="about_title">kAuth</string>

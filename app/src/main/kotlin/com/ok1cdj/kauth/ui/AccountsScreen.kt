@@ -57,12 +57,14 @@ fun AccountsScreen(
     onAbout: () -> Unit,
     onSettings: () -> Unit,
     onDelete: (OtpAccount) -> Unit,
+    onRenameIssuer: (OtpAccount, String) -> Boolean,
     onAdvanceHotp: (OtpAccount) -> Unit,
 ) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     var actionTarget by remember { mutableStateOf<OtpAccount?>(null) }
     var deleteTarget by remember { mutableStateOf<OtpAccount?>(null) }
+    var editTarget by remember { mutableStateOf<OtpAccount?>(null) }
 
     // One shared clock, updated every second. Codes recompute at the period
     // boundary; the countdown number changes each tick — a small area, so the
@@ -148,12 +150,37 @@ fun AccountsScreen(
                 Toast.makeText(context, R.string.code_copied, Toast.LENGTH_SHORT).show()
                 actionTarget = null
             },
+            onEdit = {
+                editTarget = acc
+                actionTarget = null
+            },
             onDelete = {
                 deleteTarget = acc
                 actionTarget = null
             },
             onDismiss = { actionTarget = null },
         )
+    }
+
+    editTarget?.let { acc ->
+        var issuer by remember(acc) { mutableStateOf(acc.issuer) }
+        // Same rule as manual entry: an account needs an issuer or a name.
+        val canSave = issuer.isNotBlank() || acc.name.isNotBlank()
+        MmdDialog(onDismiss = { editTarget = null }) {
+            TextMMD(text = stringResource(R.string.edit_title), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(12.dp))
+            EinkTextField(issuer, { issuer = it }, stringResource(R.string.field_issuer))
+            Spacer(Modifier.height(16.dp))
+            MmdButton(stringResource(R.string.save), modifier = Modifier.fillMaxWidth(), enabled = canSave) {
+                if (onRenameIssuer(acc, issuer)) {
+                    editTarget = null
+                } else {
+                    Toast.makeText(context, R.string.edit_duplicate, Toast.LENGTH_SHORT).show()
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            MmdButton(stringResource(R.string.cancel), modifier = Modifier.fillMaxWidth()) { editTarget = null }
+        }
     }
 
     deleteTarget?.let { acc ->
@@ -237,6 +264,7 @@ private fun AccountActionsDialog(
     account: OtpAccount,
     now: Long,
     onCopy: () -> Unit,
+    onEdit: () -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -253,6 +281,8 @@ private fun AccountActionsDialog(
         }
         Spacer(Modifier.height(16.dp))
         MmdButton(stringResource(R.string.copy), modifier = Modifier.fillMaxWidth(), onClick = onCopy)
+        Spacer(Modifier.height(8.dp))
+        MmdButton(stringResource(R.string.edit), modifier = Modifier.fillMaxWidth(), onClick = onEdit)
         Spacer(Modifier.height(8.dp))
         MmdButton(stringResource(R.string.delete), modifier = Modifier.fillMaxWidth(), onClick = onDelete)
         Spacer(Modifier.height(8.dp))

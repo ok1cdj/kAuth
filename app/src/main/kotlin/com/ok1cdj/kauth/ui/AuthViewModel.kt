@@ -281,6 +281,19 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
         persist()
     }
 
+    /**
+     * Change an account's issuer and persist. Returns false (and changes nothing)
+     * if the result would duplicate another account — the list keys rows by
+     * [OtpAccount.dedupeKey], so a collision must never reach it.
+     */
+    fun renameIssuer(account: OtpAccount, issuer: String): Boolean {
+        val updated = account.copy(issuer = issuer.trim())
+        if (accounts.any { it != account && it.dedupeKey() == updated.dedupeKey() }) return false
+        accounts = accounts.map { if (it == account) updated else it }
+        persist()
+        return true
+    }
+
     /** Advance an HOTP account's counter and persist. */
     fun advanceHotp(account: OtpAccount) {
         accounts = accounts.map { if (it == account) it.copy(counter = it.counter + 1) else it }

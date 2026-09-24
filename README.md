@@ -40,6 +40,8 @@ Services, no tracking.
   key and always works as a fallback. (Shown only on devices with biometrics.)
 - **Auto-lock** on leaving the foreground — immediate by default, or after 1/5
   minutes, or never.
+- **Edit the issuer** of an existing account (tap an account → Edit) — handy
+  when a scanned or imported account has a missing or unhelpful issuer.
 - **Search/filter** for long account lists.
 - **Encrypted backup** to a single file (same Argon2id / AES-256-GCM as the live
   vault), restorable with the master password. This is the only backup path —

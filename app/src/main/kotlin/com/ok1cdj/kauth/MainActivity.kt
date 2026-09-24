@@ -184,6 +184,7 @@ private fun App() {
                 onAbout = { showAbout = true },
                 onSettings = { showSettings = true },
                 onDelete = vm::deleteAccount,
+                onRenameIssuer = vm::renameIssuer,
                 onAdvanceHotp = vm::advanceHotp,
             )
             Screen.AddChooser -> AddChooserScreen(
