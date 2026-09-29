@@ -16,6 +16,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,14 +25,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,6 +43,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mudita.mmd.components.text.TextMMD
@@ -124,21 +128,13 @@ fun AccountsScreen(
                 Box(modifier = Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
                     TextMMD(text = stringResource(R.string.search_no_match), fontSize = 15.sp)
                 }
-            else ->
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp),
-                ) {
-                    items(shown, key = { it.dedupeKey() }) { account ->
-                        AccountRow(
-                            account = account,
-                            now = now,
-                            onClick = { actionTarget = account },
-                            onAdvanceHotp = { onAdvanceHotp(account) },
-                        )
-                    }
-                }
+            else -> AccountPages(
+                accounts = shown,
+                query = query,
+                now = now,
+                onClick = { actionTarget = it },
+                onAdvanceHotp = onAdvanceHotp,
+            )
         }
     }
 
@@ -219,6 +215,75 @@ fun AccountsScreen(
     }
 }
 
+// Fixed row height, so the number of rows that fit on one page can be computed
+// from the available height alone.
+private val ROW_HEIGHT = 84.dp
+private val ROW_SPACING = 10.dp
+
+/**
+ * The account list split into screen-sized pages with ‹ / › buttons instead of
+ * scrolling — on e-ink a page flip is one clean refresh, a scroll is many.
+ */
+@Composable
+private fun AccountPages(
+    accounts: List<OtpAccount>,
+    query: String,
+    now: Long,
+    onClick: (OtpAccount) -> Unit,
+    onAdvanceHotp: (OtpAccount) -> Unit,
+) {
+    // Back to the first page whenever the filter changes.
+    var page by rememberSaveable(query) { mutableIntStateOf(0) }
+
+    BoxWithConstraints(modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp)) {
+        val barHeight = 48.dp + ROW_SPACING
+        fun fits(height: Dp) =
+            maxOf(1, ((height + ROW_SPACING) / (ROW_HEIGHT + ROW_SPACING)).toInt())
+
+        // Only reserve room for the page bar when one page isn't enough.
+        val pageSize = fits(maxHeight).let { if (accounts.size <= it) it else fits(maxHeight - barHeight) }
+        val pageCount = (accounts.size + pageSize - 1) / pageSize
+        // Deleting the last account on the last page must not leave an empty page.
+        val current = page.coerceIn(0, pageCount - 1)
+
+        Column(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                verticalArrangement = Arrangement.spacedBy(ROW_SPACING),
+            ) {
+                accounts.drop(current * pageSize).take(pageSize).forEach { account ->
+                    key(account.dedupeKey()) {
+                        AccountRow(
+                            account = account,
+                            now = now,
+                            onClick = { onClick(account) },
+                            onAdvanceHotp = { onAdvanceHotp(account) },
+                        )
+                    }
+                }
+            }
+            if (pageCount > 1) {
+                Spacer(Modifier.height(ROW_SPACING))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    MmdButton("‹", modifier = Modifier.width(96.dp).height(48.dp), enabled = current > 0, fontSize = 22.sp) {
+                        page = current - 1
+                    }
+                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                        TextMMD(
+                            text = stringResource(R.string.page_indicator, current + 1, pageCount),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                    MmdButton("›", modifier = Modifier.width(96.dp).height(48.dp), enabled = current < pageCount - 1, fontSize = 22.sp) {
+                        page = current + 1
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun AccountRow(
     account: OtpAccount,
@@ -232,11 +297,18 @@ private fun AccountRow(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .height(ROW_HEIGHT)
             .border(1.dp, Color.Black, RoundedCornerShape(8.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .padding(horizontal = 14.dp, vertical = 8.dp),
     ) {
-        TextMMD(text = account.label(), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        TextMMD(
+            text = account.label(),
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
         Spacer(Modifier.height(4.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             MonoCode(code = code)
@@ -246,7 +318,8 @@ private fun AccountRow(
             } else {
                 MmdButton(
                     text = stringResource(R.string.hotp_next),
-                    modifier = Modifier.width(96.dp),
+                    // Shorter than the default 56dp so it fits the fixed ROW_HEIGHT.
+                    modifier = Modifier.width(96.dp).height(44.dp),
                     fontSize = 13.sp,
                     onClick = onAdvanceHotp,
                 )

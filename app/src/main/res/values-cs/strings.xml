@@ -48,6 +48,7 @@
     <string name="lock_now">Zamknout</string>
     <string name="search">Hledat</string>
     <string name="search_no_match">Žádné odpovídající účty</string>
+    <string name="page_indicator">%1$d / %2$d</string>
 
     <!-- Biometric unlock -->
     <string name="unlock_biometric">Použít biometrii</string>
