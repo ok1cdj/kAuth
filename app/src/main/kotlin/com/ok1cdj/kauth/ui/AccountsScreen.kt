@@ -16,7 +16,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -27,6 +26,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
@@ -37,6 +37,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -44,6 +45,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -215,10 +217,10 @@ fun AccountsScreen(
     }
 }
 
-// Fixed row height, so the number of rows that fit on one page can be computed
-// from the available height alone.
-private val ROW_HEIGHT = 84.dp
-private val ROW_SPACING = 10.dp
+private val ROW_SPACING = 8.dp
+private val PAGE_BAR_HEIGHT = 48.dp
+// Same as the code line at the default font size, so HOTP and TOTP rows match.
+private val HOTP_BUTTON_HEIGHT = 40.dp
 
 /**
  * The account list split into screen-sized pages with ‹ / › buttons instead of
@@ -232,52 +234,91 @@ private fun AccountPages(
     onClick: (OtpAccount) -> Unit,
     onAdvanceHotp: (OtpAccount) -> Unit,
 ) {
-    // Back to the first page whenever the filter changes.
-    var page by rememberSaveable(query) { mutableIntStateOf(0) }
+    // Index of the first account on the shown page, not a page number, so a
+    // change in rows per page (search field, keyboard, font size) keeps the same
+    // accounts in view. Back to the start whenever the filter changes.
+    var first by rememberSaveable(query) { mutableIntStateOf(0) }
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp)) {
-        val barHeight = 48.dp + ROW_SPACING
-        fun fits(height: Dp) =
-            maxOf(1, ((height + ROW_SPACING) / (ROW_HEIGHT + ROW_SPACING)).toInt())
+    SubcomposeLayout(modifier = Modifier.fillMaxSize().padding(start = 12.dp, top = 4.dp, end = 12.dp, bottom = 8.dp)) { constraints ->
+        // The row height is measured, not hardcoded: its text is in sp, so it
+        // grows with the system font size.
+        val rowHeight = subcompose("probe") { RowProbe() }
+            .first()
+            .measure(Constraints(minWidth = constraints.maxWidth, maxWidth = constraints.maxWidth))
+            .height
+        val spacing = ROW_SPACING.roundToPx()
+        fun fits(height: Int) = maxOf(1, (height + spacing) / (rowHeight + spacing))
 
         // Only reserve room for the page bar when one page isn't enough.
-        val pageSize = fits(maxHeight).let { if (accounts.size <= it) it else fits(maxHeight - barHeight) }
+        val pageSize = fits(constraints.maxHeight).let {
+            if (accounts.size <= it) it else fits(constraints.maxHeight - PAGE_BAR_HEIGHT.roundToPx() - spacing)
+        }
         val pageCount = (accounts.size + pageSize - 1) / pageSize
         // Deleting the last account on the last page must not leave an empty page.
-        val current = page.coerceIn(0, pageCount - 1)
+        val current = (first / pageSize).coerceIn(0, pageCount - 1)
 
-        Column(modifier = Modifier.fillMaxSize()) {
-            Column(
-                modifier = Modifier.fillMaxWidth().weight(1f),
-                verticalArrangement = Arrangement.spacedBy(ROW_SPACING),
-            ) {
-                accounts.drop(current * pageSize).take(pageSize).forEach { account ->
-                    key(account.dedupeKey()) {
-                        AccountRow(
-                            account = account,
-                            now = now,
-                            onClick = { onClick(account) },
-                            onAdvanceHotp = { onAdvanceHotp(account) },
-                        )
-                    }
+        val content = subcompose("page") {
+            // Store the clamped page start, so later list changes start from
+            // the page actually on screen.
+            SideEffect { if (first != current * pageSize) first = current * pageSize }
+            AccountPage(
+                accounts = accounts.drop(current * pageSize).take(pageSize),
+                rowHeight = rowHeight.toDp(),
+                page = current,
+                pageCount = pageCount,
+                now = now,
+                onPage = { first = it * pageSize },
+                onClick = onClick,
+                onAdvanceHotp = onAdvanceHotp,
+            )
+        }.map { it.measure(constraints) }
+        layout(constraints.maxWidth, constraints.maxHeight) { content.forEach { it.place(0, 0) } }
+    }
+}
+
+@Composable
+private fun AccountPage(
+    accounts: List<OtpAccount>,
+    rowHeight: Dp,
+    page: Int,
+    pageCount: Int,
+    now: Long,
+    onPage: (Int) -> Unit,
+    onClick: (OtpAccount) -> Unit,
+    onAdvanceHotp: (OtpAccount) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            verticalArrangement = Arrangement.spacedBy(ROW_SPACING),
+        ) {
+            accounts.forEach { account ->
+                key(account.dedupeKey()) {
+                    AccountRow(
+                        account = account,
+                        now = now,
+                        height = rowHeight,
+                        onClick = { onClick(account) },
+                        onAdvanceHotp = { onAdvanceHotp(account) },
+                    )
                 }
             }
-            if (pageCount > 1) {
-                Spacer(Modifier.height(ROW_SPACING))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    MmdButton("‹", modifier = Modifier.width(96.dp).height(48.dp), enabled = current > 0, fontSize = 22.sp) {
-                        page = current - 1
-                    }
-                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        TextMMD(
-                            text = stringResource(R.string.page_indicator, current + 1, pageCount),
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                        )
-                    }
-                    MmdButton("›", modifier = Modifier.width(96.dp).height(48.dp), enabled = current < pageCount - 1, fontSize = 22.sp) {
-                        page = current + 1
-                    }
+        }
+        if (pageCount > 1) {
+            Spacer(Modifier.height(ROW_SPACING))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                MmdButton("‹", modifier = Modifier.width(96.dp).height(PAGE_BAR_HEIGHT), enabled = page > 0, fontSize = 22.sp) {
+                    onPage(page - 1)
+                }
+                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    TextMMD(
+                        text = stringResource(R.string.page_indicator, page + 1, pageCount),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+                MmdButton("›", modifier = Modifier.width(96.dp).height(PAGE_BAR_HEIGHT), enabled = page < pageCount - 1, fontSize = 22.sp) {
+                    onPage(page + 1)
                 }
             }
         }
@@ -288,22 +329,54 @@ private fun AccountPages(
 private fun AccountRow(
     account: OtpAccount,
     now: Long,
+    height: Dp,
     onClick: () -> Unit,
     onAdvanceHotp: () -> Unit,
 ) {
     val code = remember(account, if (account.type == OtpType.TOTP) now / (account.period * 1000L) else account.counter) {
         runCatching { Otp.code(account, now) }.getOrDefault("------")
     }
+    RowFrame(label = account.label(), code = code, modifier = Modifier.height(height).clickable(onClick = onClick)) {
+        if (account.type == OtpType.TOTP) {
+            Countdown(period = account.period, now = now)
+        } else {
+            MmdButton(
+                text = stringResource(R.string.hotp_next),
+                modifier = Modifier.width(96.dp).height(HOTP_BUTTON_HEIGHT),
+                fontSize = 13.sp,
+                onClick = onAdvanceHotp,
+            )
+        }
+    }
+}
+
+/** An unshown row holding the tallest trailing content, measured for the row height. */
+@Composable
+private fun RowProbe() {
+    RowFrame(label = "Ag", code = "000000") {
+        Box {
+            Countdown(period = 30, now = 0L)
+            Spacer(Modifier.height(HOTP_BUTTON_HEIGHT))
+        }
+    }
+}
+
+@Composable
+private fun RowFrame(
+    label: String,
+    code: String,
+    modifier: Modifier = Modifier,
+    trailing: @Composable () -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(ROW_HEIGHT)
+            .then(modifier)
             .border(1.dp, Color.Black, RoundedCornerShape(8.dp))
-            .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp),
     ) {
         TextMMD(
-            text = account.label(),
+            text = label,
             fontSize = 13.sp,
             fontWeight = FontWeight.Bold,
             maxLines = 1,
@@ -313,17 +386,7 @@ private fun AccountRow(
         Row(verticalAlignment = Alignment.CenterVertically) {
             MonoCode(code = code)
             Spacer(Modifier.weight(1f))
-            if (account.type == OtpType.TOTP) {
-                Countdown(period = account.period, now = now)
-            } else {
-                MmdButton(
-                    text = stringResource(R.string.hotp_next),
-                    // Shorter than the default 56dp so it fits the fixed ROW_HEIGHT.
-                    modifier = Modifier.width(96.dp).height(44.dp),
-                    fontSize = 13.sp,
-                    onClick = onAdvanceHotp,
-                )
-            }
+            trailing()
         }
     }
 }
